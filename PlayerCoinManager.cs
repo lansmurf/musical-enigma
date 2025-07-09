@@ -1,22 +1,18 @@
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
-// We still use this alias for convenience, but will be explicit in the interface implementation.
 using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 namespace CoinMod
 {
     public class PlayerCoinManager : MonoBehaviourPun, IInRoomCallbacks 
     {
-        // This static property will hold the instance of the PlayerCoinManager for the local player.
-        // On the host's machine, this gives us an easy way to access the authoritative manager.
         public static PlayerCoinManager LocalInstance { get; private set; }
 
         public int SharedCoins { get; private set; }
 
         #region Unity Lifecycle
 
-        // We add an Awake method to set the static LocalInstance.
         private void Awake()
         {
             if (photonView.IsMine)
@@ -63,9 +59,6 @@ namespace CoinMod
         {
             if (!PhotonNetwork.IsMasterClient) return;
             
-            // --- FIX ---
-            // The RPC runs on the sender's PlayerCoinManager instance on the host machine.
-            // We must find the HOST's own instance to get the authoritative coin count.
             var hostManager = LocalInstance;
             if (hostManager == null)
             {
@@ -76,7 +69,6 @@ namespace CoinMod
             int newTotal = hostManager.SharedCoins + amount;
             if (newTotal < 0) newTotal = 0;
             
-            // Use the host's photonView to broadcast the new, correct total to everyone.
             hostManager.photonView.RPC(nameof(RPC_Client_UpdateCoins), RpcTarget.All, newTotal);
         }
         
@@ -85,8 +77,6 @@ namespace CoinMod
         {
             if (!PhotonNetwork.IsMasterClient) return;
 
-            // --- FIX ---
-            // Same logic as above: find the host's authoritative manager.
             var hostManager = LocalInstance;
             if (hostManager == null)
             {
@@ -96,15 +86,10 @@ namespace CoinMod
 
             if (ShopDatabase.ItemData.TryGetValue(itemName, out var itemData))
             {
-                // Check against the HOST's coin count.
                 if (hostManager.SharedCoins >= itemData.Price)
                 {
                     int newTotal = hostManager.SharedCoins - itemData.Price;
-                    
-                    // Use the HOST's photonView to broadcast the coin update to everyone.
                     hostManager.photonView.RPC(nameof(RPC_Client_UpdateCoins), RpcTarget.All, newTotal);
-                    
-                    // Use the original photonView to send the confirmation only to the buyer. This is correct.
                     photonView.RPC(nameof(RPC_Client_ConfirmPurchase), info.Sender, itemName);
                     CoinPlugin.Log.LogInfo($"Host approved purchase of {itemName} for {info.Sender.NickName}. New coin total: {newTotal}");
                 }
@@ -124,8 +109,16 @@ namespace CoinMod
         [PunRPC]
         private void RPC_Client_UpdateCoins(int newTotal)
         {
-            SharedCoins = newTotal;
-            
+            // This RPC is received by the HOST's PlayerCoinManager component on ALL clients.
+            // We must find the LOCAL player's manager instance and update ITS value.
+            if (LocalInstance != null)
+            {
+                // This updates the correct manager on each client's machine.
+                LocalInstance.SharedCoins = newTotal;
+            }
+
+            // The UI instances are global singletons, so this part is correct and
+            // will update the UI for the local player on their machine.
             if (CoinUI.Instance != null)
             {
                 CoinUI.Instance.UpdateCoinCount(newTotal);
@@ -136,9 +129,7 @@ namespace CoinMod
                 ShopManager.Instance.RefreshShopDisplay();
             }
             
-            // This log message can be a bit confusing, as it's the same on every client.
-            // A more generic message might be better, but we'll keep it for now.
-            CoinPlugin.Log.LogInfo($"Local coin count updated to {newTotal}");
+            CoinPlugin.Log.LogInfo($"Team coin count has been updated to {newTotal}");
         }
 
         [PunRPC]
@@ -146,8 +137,6 @@ namespace CoinMod
         {
             if (!PhotonNetwork.IsMasterClient) return;
 
-            // We use LocalInstance here as well for consistency, although `this` would also work
-            // since this RPC is received on the host's own PlayerCoinManager.
             var hostManager = LocalInstance;
             if (hostManager == null) return;
             
@@ -162,7 +151,6 @@ namespace CoinMod
         {
             if (PhotonNetwork.IsMasterClient)
             {
-                // Use LocalInstance for consistency.
                 var hostManager = LocalInstance;
                 if (hostManager == null) return;
 
