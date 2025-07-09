@@ -1,51 +1,25 @@
 using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
-using UnityEngine;
 
 namespace CoinMod
 {
-    [BepInPlugin("com.yourusername.peakcoinmod", "Peak Coin Mod", "1.2.0")]
+    [BepInPlugin("com.yourusername.peakcoinmod", "Peak Coin Mod", "3.0.0")]
     public class CoinPlugin : BaseUnityPlugin
     {
-        private readonly Harmony harmony = new Harmony("com.yourusername.peakcoinmod.harmony");
         internal static ManualLogSource Log;
-
-        public static int PlayerCoins { get; set; } = 1;
 
         private void Awake()
         {
             Log = Logger;
-            Log.LogInfo("Shopkeeper BingBong is preparing his wares...");
+            Log.LogInfo("Peak Coin Mod v3.0.0 is loading!");
             
-            // Harmony will find and apply all patch classes in our project
+            var harmony = new Harmony("com.yourusername.peakcoinmod.harmony");
             harmony.PatchAll();
             
-            Log.LogInfo("Game Patched. Good luck out there!");
+            Log.LogInfo("Peak Coin Mod is ready for business!");
         }
 
-        private void Update()
-        {
-            if (Character.localCharacter == null || !Input.GetKeyDown(KeyCode.E) || Camera.main == null)
-            {
-                return;
-            }
-
-            // Raycast to see what the player is looking at
-            if (Physics.Raycast(Camera.main.transform.position, Camera.main.transform.forward, out RaycastHit hit, 5f))
-            {
-                // THE KEY CHANGE: We check for our custom component!
-                if (hit.collider.GetComponent<ShopkeeperBingBong>() != null)
-                {
-                    Log.LogInfo("Player interacted with a Shopkeeper BingBong!");
-                    ShopManager.OpenShopGUI();
-                }
-            }
-        }
-
-        private void OnGUI()
-        {
-            ShopManager.DrawShopGUI();
-        }
+        // The OnGUI method has been removed as it is no longer used.
     }
 }

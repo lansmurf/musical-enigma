@@ -1,0 +1,6 @@
+C:\Users\lansm\Downloads\musical-enigma-main\musical-enigma-main\obj\Debug\netstandard2.0\CoinModProject.csproj.AssemblyReference.cache
+C:\Users\lansm\Downloads\musical-enigma-main\musical-enigma-main\obj\Debug\netstandard2.0\PluginInfo.cs
+C:\Users\lansm\Downloads\musical-enigma-main\musical-enigma-main\obj\Debug\netstandard2.0\CoinModProject.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\lansm\Downloads\musical-enigma-main\musical-enigma-main\obj\Debug\netstandard2.0\CoinModProject.AssemblyInfoInputs.cache
+C:\Users\lansm\Downloads\musical-enigma-main\musical-enigma-main\obj\Debug\netstandard2.0\CoinModProject.AssemblyInfo.cs
+C:\Users\lansm\Downloads\musical-enigma-main\musical-enigma-main\obj\Debug\netstandard2.0\CoinModProject.csproj.CoreCompileInputs.cache

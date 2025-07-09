@@ -10,13 +10,16 @@ namespace CoinMod.Patches
         [HarmonyPostfix]
         public static void GiveCoinsOnOpenPatch(Character interactor)
         {
-            // From your Character.cs file, we know 'IsLocal' is a property on Character.
             if (interactor != null && interactor.IsLocal)
             {
-                int coinsToGive = Random.Range(10, 51);
-                CoinPlugin.PlayerCoins += coinsToGive;
-                CoinPlugin.Log.LogInfo($"You opened luggage and found {coinsToGive} coins!");
-                CoinPlugin.Log.LogInfo($"Total coins: {CoinPlugin.PlayerCoins}");
+                // Find the host's coin manager instance.
+                if (PlayerCoinManager.HostInstance != null)
+                {
+                    int coinsToGive = Random.Range(10, 51);
+                    // Call the RPC on the host's instance to request a change.
+                    PlayerCoinManager.HostInstance.photonView.RPC("RPC_Request_ModifyCoins", PlayerCoinManager.HostInstance.photonView.Owner, coinsToGive);
+                    CoinPlugin.Log.LogInfo($"You opened luggage and requested {coinsToGive} coins for the team!");
+                }
             }
         }
     }

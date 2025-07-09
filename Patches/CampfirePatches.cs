@@ -3,34 +3,60 @@ using UnityEngine;
 
 namespace CoinMod.Patches
 {
-    // A marker to prevent spawning multiple shopkeepers at one campfire
-    public class HasBingBongShop : MonoBehaviour {} 
-
     [HarmonyPatch(typeof(Campfire))]
     public static class CampfirePatches
     {
-        [HarmonyPatch("Light_Rpc")]
+        [HarmonyPatch("IsInteractible")]
         [HarmonyPostfix]
-        public static void SpawnShopkeeperAtCampfire(Campfire __instance)
+        public static void AllowEmptyHandedInteraction(Campfire __instance, Character interactor, ref bool __result)
         {
-            // Prevent spawning if one already exists here or if the main BingBong isn't available
-            if (__instance.GetComponent<HasBingBongShop>() != null || BingBong.Instance == null)
+            if (__result) return;
+            if (__instance.Lit && interactor?.data.currentItem == null)
             {
-                return;
+                __result = true;
             }
+        }
 
-            CoinPlugin.Log.LogInfo($"Campfire lit! Spawning temporary Shopkeeper BingBong at {__instance.transform.position}.");
+        [HarmonyPatch("IsConstantlyInteractable")]
+        [HarmonyPostfix]
+        public static void AllowEmptyHandedConstantInteraction(Campfire __instance, Character interactor, ref bool __result)
+        {
+            if (__result) return;
+            if (__instance.Lit && interactor?.data.currentItem == null)
+            {
+                __result = true;
+            }
+        }
 
-            GameObject originalBingBong = BingBong.Instance.gameObject;
-            
-            // Spawn the shopkeeper slightly behind the campfire
-            Vector3 spawnPosition = __instance.transform.position - __instance.transform.forward * 2f;
+        [HarmonyPatch("GetInteractionText")]
+        [HarmonyPostfix]
+        public static void OverwriteInteractionText(Campfire __instance, ref string __result)
+        {
+            if (!__instance.Lit) return;
+            Character localPlayer = Character.localCharacter;
+            if (localPlayer == null) return;
 
-            // Use the same helper function from our other patch
-            WorldSpawnPatches.CreateShopkeeper(originalBingBong, spawnPosition);
+            if (localPlayer.data.currentItem == null)
+            {
+                __result = "Shop";
+            }
+        }
 
-            // "Tag" this campfire so we don't spawn another shopkeeper here
-            __instance.gameObject.AddComponent<HasBingBongShop>();
+        [HarmonyPatch("Interact")]
+        [HarmonyPrefix]
+        public static bool HandleShopInteraction(Campfire __instance, Character interactor)
+        {
+            if (__instance.Lit && interactor.data.currentItem == null)
+            {
+                // Call the new instance method, passing the campfire itself.
+                if (ShopManager.Instance != null)
+                {
+                    ShopManager.Instance.OpenShopGUI(__instance);
+                }
+                
+                return false; 
+            }
+            return true;
         }
     }
 }
