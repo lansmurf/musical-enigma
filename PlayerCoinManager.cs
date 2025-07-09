@@ -1,9 +1,7 @@
 using Photon.Pun;
-using Photon.Realtime; // Required for Player and PhotonMessageInfo
+using Photon.Realtime;
 using UnityEngine;
-
-// Hashtable is in this namespace.
-using ExitGames.Client.Photon; 
+using Hashtable = ExitGames.Client.Photon.Hashtable; // Defines which Hashtable to use
 
 namespace CoinMod
 {
@@ -11,7 +9,7 @@ namespace CoinMod
     {
         public int SharedCoins { get; private set; }
 
-        // --- Unity Lifecycle ---
+        #region Unity Lifecycle
         private void OnEnable()
         {
             PhotonNetwork.AddCallbackTarget(this);
@@ -30,14 +28,16 @@ namespace CoinMod
                 CoinPlugin.Log.LogInfo("Client has started. Requesting coin sync from host.");
             }
         }
+        #endregion
         
-        // --- Public Method for Other Scripts ---
+        #region Public Method for Other Scripts
         public void RequestModifyCoins(int amount)
         {
             photonView.RPC(nameof(RPC_Host_ProcessCoinModification), RpcTarget.MasterClient, amount);
         }
+        #endregion
 
-        // --- RPCs for Networking ---
+        #region RPCs for Networking
         [PunRPC]
         private void RPC_Host_ProcessCoinModification(int amount)
         {
@@ -65,11 +65,14 @@ namespace CoinMod
             photonView.RPC(nameof(RPC_Client_UpdateCoins), info.Sender, SharedCoins);
             CoinPlugin.Log.LogInfo($"Host received sync request. Sending {SharedCoins} coins to {info.Sender.NickName}.");
         }
+        #endregion
         
-        // --- IInRoomCallbacks Implementation ---
+        #region IInRoomCallbacks Implementation (The Fix)
         
-        /// <summary>This method is part of the IInRoomCallbacks contract.</summary>
-        public void OnPlayerEnteredRoom(Player newPlayer)
+        // We are now using the full, explicit type names for each parameter
+        // to remove any possible confusion for the compiler.
+        
+        public void OnPlayerEnteredRoom(Photon.Realtime.Player newPlayer)
         {
             if (PhotonNetwork.IsMasterClient)
             {
@@ -78,16 +81,10 @@ namespace CoinMod
             }
         }
 
-        /// <summary>This method is part of the IInRoomCallbacks contract.</summary>
-        public void OnPlayerLeftRoom(Player otherPlayer) { }
-
-        /// <summary>This method is part of the IInRoomCallbacks contract.</summary>
+        public void OnPlayerLeftRoom(Photon.Realtime.Player otherPlayer) { }
         public void OnRoomPropertiesUpdate(Hashtable propertiesThatChanged) { }
-
-        /// <summary>This method is part of the IInRoomCallbacks contract.</summary>
-        public void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps) { }
-
-        /// <summary>This method is part of the IInRoomCallbacks contract.</summary>
-        public void OnMasterClientSwitched(Player newMasterClient) { }
+        public void OnPlayerPropertiesUpdate(Photon.Realtime.Player targetPlayer, Hashtable changedProps) { }
+        public void OnMasterClientSwitched(Photon.Realtime.Player newMasterClient) { }
+        #endregion
     }
 }
