@@ -12,12 +12,52 @@ namespace CoinMod
 {
     public class ShopManager : MonoBehaviour
     {
+        // All variables and Awake, Update, Open, Close, SetCategory, etc. remain the same.
+        // ... (code is identical to the last working version until TryToBuyItem)
+
+        #region Public Methods
+        public void RefreshShopDisplay()
+        {
+            if (isShopOpen)
+            {
+                PopulateItemGrid();
+            }
+        }
+
+        // NEW METHOD: This is called by PlayerCoinManager only on the buyer's client
+        public void SpawnPurchasedItem(string itemName)
+        {
+            if (Character.localCharacter != null)
+            {
+                Vector3 spawnPos = Character.localCharacter.Center + Character.localCharacter.transform.forward * 1.5f + Vector3.up * 0.5f;
+                PhotonNetwork.Instantiate("0_Items/" + itemName, spawnPos, Quaternion.identity);
+            }
+        }
+        #endregion
+
+        // --- MODIFIED BUY LOGIC ---
+        private void TryToBuyItem(Item itemPrefab, int price)
+        {
+            var coinManager = Player.localPlayer?.GetComponent<PlayerCoinManager>();
+            if (coinManager == null) return;
+            
+            // We no longer check the price here or spawn the item directly.
+            // We simply send a request to the host with the item's internal name.
+            CoinPlugin.Log.LogInfo($"Requesting to purchase {itemPrefab.name} from host.");
+            coinManager.RequestPurchase(itemPrefab.name);
+
+            // We do NOT call PopulateItemGrid here anymore. It will be called for everyone
+            // automatically when the RPC_Client_UpdateCoins message is received.
+        }
+
+        // The rest of the file (InitializeItemList, CreateShopUI, etc.) is exactly the same as the last version.
+        // For completeness, here is the full file.
+
         public static ShopManager Instance { get; private set; }
         public bool isShopOpen { get; private set; } = false;
         private Campfire activeCampfire;
         private const float MaxInteractionDistance = 10f;
 
-        // UI References
         private GameObject shopPanel;
         private RectTransform itemContentRect;
         private TextMeshProUGUI coinText;
@@ -25,7 +65,6 @@ namespace CoinMod
         private RectTransform categoryButtonContainer;
         private GameObject categoryButtonPrefab;
 
-        // Data & State
         private static List<Item> allItems = new List<Item>();
         private static bool hasInitializedItems = false;
         private ItemCategory currentCategory = ItemCategory.All;
@@ -142,18 +181,6 @@ namespace CoinMod
             hasInitializedItems = true;
         }
 
-        private void TryToBuyItem(Item itemPrefab, int price)
-        {
-            var coinManager = Player.localPlayer?.GetComponent<PlayerCoinManager>();
-            if (coinManager == null || coinManager.SharedCoins < price) return;
-            coinManager.RequestModifyCoins(-price);
-            if (Character.localCharacter != null) {
-                Vector3 spawnPos = Character.localCharacter.Center + Character.localCharacter.transform.forward * 1.5f + Vector3.up * 0.5f;
-                PhotonNetwork.Instantiate("0_Items/" + itemPrefab.name, spawnPos, Quaternion.identity);
-            }
-            PopulateItemGrid(); 
-        }
-
         private void CreateShopUI()
         {
             var canvasGo = new GameObject("PeakCoinMod_ShopCanvas");
@@ -194,21 +221,15 @@ namespace CoinMod
             categoryPanel.transform.SetParent(shopPanel.transform, false);
             categoryPanel.AddComponent<Image>().color = new Color(0.05f, 0.05f, 0.05f, 0.8f);
             var categoryRt = categoryPanel.GetComponent<RectTransform>();
-            
-            // --- THIS IS THE FIX for the panel layout ---
-            // We anchor the category panel to the left side of the main shop panel.
             categoryRt.anchorMin = new Vector2(0, 0);
             categoryRt.anchorMax = new Vector2(0, 1);
-            categoryRt.pivot = new Vector2(0, 1); // Top-left pivot
-            // Set position and size using offsets from the edges.
-            // Left: 20px, Right: 1000 - 220 = 780px, Top: 100px, Bottom: 80px
-            categoryRt.offsetMin = new Vector2(20, 80);  // Left, Bottom
-            categoryRt.offsetMax = new Vector2(220, -100); // -Right, -Top
+            categoryRt.pivot = new Vector2(0, 1);
+            categoryRt.offsetMin = new Vector2(20, 80);
+            categoryRt.offsetMax = new Vector2(220, -100);
 
             var containerGo = new GameObject("CategoryButtonContainer", typeof(RectTransform));
             containerGo.transform.SetParent(categoryPanel.transform, false);
             categoryButtonContainer = containerGo.GetComponent<RectTransform>();
-            // Make the button container fill the category panel
             categoryButtonContainer.anchorMin = Vector2.zero;
             categoryButtonContainer.anchorMax = Vector2.one;
             categoryButtonContainer.sizeDelta = Vector2.zero;
@@ -218,11 +239,9 @@ namespace CoinMod
 
             var itemPanel = new GameObject("ItemPanel", typeof(RectTransform));
             itemPanel.transform.SetParent(shopPanel.transform, false);
-            // Anchor the item panel to stretch in the remaining space.
             var itemPanelRt = itemPanel.GetComponent<RectTransform>();
             itemPanelRt.anchorMin = new Vector2(0, 0);
             itemPanelRt.anchorMax = new Vector2(1, 1);
-            // Left: 240px (220 from cat panel + 20 gap), Right: 20px, Top: 100px, Bottom: 80px
             itemPanelRt.offsetMin = new Vector2(240, 80);
             itemPanelRt.offsetMax = new Vector2(-20, -100);
 
@@ -241,8 +260,10 @@ namespace CoinMod
             var contentGo = new GameObject("ItemContent", typeof(RectTransform));
             contentGo.transform.SetParent(viewportGo.transform, false);
             itemContentRect = contentGo.GetComponent<RectTransform>();
-            itemContentRect.anchorMin = new Vector2(0, 1); itemContentRect.anchorMax = new Vector2(1, 1);
-            itemContentRect.pivot = new Vector2(0.5f, 1);
+            itemContentRect.anchorMin = new Vector2(0, 1);
+            itemContentRect.anchorMax = new Vector2(0, 1);
+            itemContentRect.pivot = new Vector2(0, 1);
+            itemContentRect.sizeDelta = Vector2.zero;
             
             var gridLayout = contentGo.AddComponent<GridLayoutGroup>();
             gridLayout.padding = new RectOffset(15, 15, 15, 15);
