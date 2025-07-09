@@ -12,12 +12,13 @@ namespace CoinMod.Patches
         {
             if (interactor != null && interactor.IsLocal)
             {
-                // Find the host's coin manager instance.
-                if (PlayerCoinManager.HostInstance != null)
+                // Find the CoinManager on the local player's Player object.
+                var coinManager = Player.localPlayer.GetComponent<PlayerCoinManager>();
+                if (coinManager != null)
                 {
                     int coinsToGive = Random.Range(10, 51);
-                    // Call the RPC on the host's instance to request a change.
-                    PlayerCoinManager.HostInstance.photonView.RPC("RPC_Request_ModifyCoins", PlayerCoinManager.HostInstance.photonView.Owner, coinsToGive);
+                    // Call the public method to send the request to the host.
+                    coinManager.RequestModifyCoins(coinsToGive);
                     CoinPlugin.Log.LogInfo($"You opened luggage and requested {coinsToGive} coins for the team!");
                 }
             }

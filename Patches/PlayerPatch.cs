@@ -13,30 +13,29 @@ namespace CoinMod.Patches
         public static void OnPlayerAwake(Player __instance)
         {
             // The Player object is persistent, so we add our manager here.
+            // This ensures every player, host or client, gets one.
             if (__instance.gameObject.GetComponent<PlayerCoinManager>() == null)
             {
                 __instance.gameObject.AddComponent<PlayerCoinManager>();
+                CoinPlugin.Log.LogInfo($"Added PlayerCoinManager to player: {__instance.photonView.Owner.NickName}");
             }
             
             // This setup only needs to run ONCE for the local player's entire game session.
             if (__instance.photonView.IsMine && !hasInitializedSystems)
             {
-                CoinPlugin.Log.LogInfo("Local player awakened for the first time. Initializing mod systems...");
+                CoinPlugin.Log.LogInfo("Local player has awoken. Initializing mod UI systems...");
                 
-                // --- Create a single, persistent host object for our UI managers ---
+                // Create a single, persistent host object for our UI and other managers.
                 GameObject modHostObject = new GameObject("PeakCoinMod_Systems");
                 Object.DontDestroyOnLoad(modHostObject);
 
                 // Add all our MonoBehaviour managers to this one host object.
-                // The managers will now control their own lifecycle.
                 modHostObject.AddComponent<ShopManager>();
                 
-                if (CoinUI.Instance == null)
-                {
-                   var coinUI = modHostObject.AddComponent<CoinUI>();
-                   coinUI.Initialize();
-                   coinUI.SetCanvasParent(GUIManager.instance.hudCanvas.transform);
-                }
+                // Create and initialize our Coin UI.
+                var coinUI = modHostObject.AddComponent<CoinUI>();
+                coinUI.Initialize();
+                coinUI.SetCanvasParent(GUIManager.instance.hudCanvas.transform);
 
                 hasInitializedSystems = true;
             }

@@ -3,7 +3,7 @@ using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using Photon.Pun; // Added for TryToBuyItem
+using Photon.Pun;
 
 namespace CoinMod
 {
@@ -62,21 +62,13 @@ namespace CoinMod
 
         void Update()
         {
-            if (!isShopOpen || activeCampfire == null || Character.localCharacter == null)
-            {
-                return;
-            }
+            if (!isShopOpen) return;
 
-            float distance = Vector3.Distance(Character.localCharacter.Center, activeCampfire.transform.position);
-            if (distance > MaxInteractionDistance)
+            // Automatically close the shop if the player moves too far away.
+            if (activeCampfire == null || Character.localCharacter == null || Vector3.Distance(Character.localCharacter.Center, activeCampfire.transform.position) > MaxInteractionDistance)
             {
-                CoinPlugin.Log.LogInfo("Player is too far from the campfire. Closing shop.");
+                CoinPlugin.Log.LogInfo("Player is too far from the campfire. Auto-closing shop.");
                 CloseShopGUI();
-            }
-
-            if (coinText != null && PlayerCoinManager.HostInstance != null)
-            {
-                coinText.text = $"Team Coins: {PlayerCoinManager.HostInstance.SharedCoins}";
             }
         }
 
@@ -105,55 +97,50 @@ namespace CoinMod
             SetCursorState(false);
         }
 
-        // In ShopManager.cs
-
-private void PopulateShop()
-{
-    // Clear any old item listings
-    foreach (Transform child in contentRect)
-    {
-        Destroy(child.gameObject);
-    }
-    
-    int currentCoins = (PlayerCoinManager.HostInstance != null) ? PlayerCoinManager.HostInstance.SharedCoins : 0;
-
-    // Create a new listing for each item
-    foreach (var item in allItems)
-    {
-        if (!ItemPrices.TryGetValue(item.name, out int price)) price = DefaultPrice;
-
-        GameObject newItemEntry = Instantiate(itemListingPrefab, contentRect);
-        newItemEntry.SetActive(true); // Make sure the instantiated object is active
-        
-        // Find components in the new entry
-        Image itemIcon = newItemEntry.transform.Find("ItemIcon").GetComponent<Image>();
-        TextMeshProUGUI itemName = newItemEntry.transform.Find("ItemName").GetComponent<TextMeshProUGUI>();
-        Button buyButton = newItemEntry.transform.Find("BuyButton").GetComponent<Button>();
-        TextMeshProUGUI buyButtonText = buyButton.GetComponentInChildren<TextMeshProUGUI>();
-
-        // --- THIS IS THE CORRECTED LOGIC ---
-        if (item.UIData?.icon != null)
+        private void PopulateShop()
         {
-            // Convert the item's Texture2D to a Sprite
-            Texture2D tex = item.UIData.icon;
-            itemIcon.sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+            // Clear any old item listings
+            foreach (Transform child in contentRect)
+            {
+                Destroy(child.gameObject);
+            }
+            
+            int currentCoins = Player.localPlayer.GetComponent<PlayerCoinManager>()?.SharedCoins ?? 0;
+            coinText.text = $"Team Coins: {currentCoins}";
+
+            // Create a new listing for each item
+            foreach (var item in allItems)
+            {
+                if (!ItemPrices.TryGetValue(item.name, out int price)) price = DefaultPrice;
+
+                GameObject newItemEntry = Instantiate(itemListingPrefab, contentRect);
+                newItemEntry.SetActive(true);
+                
+                // Find components in the new entry
+                Image itemIcon = newItemEntry.transform.Find("ItemIcon").GetComponent<Image>();
+                TextMeshProUGUI itemName = newItemEntry.transform.Find("ItemName").GetComponent<TextMeshProUGUI>();
+                Button buyButton = newItemEntry.transform.Find("BuyButton").GetComponent<Button>();
+                TextMeshProUGUI buyButtonText = buyButton.GetComponentInChildren<TextMeshProUGUI>();
+
+                if (item.UIData?.icon != null)
+                {
+                    Texture2D tex = item.UIData.icon;
+                    itemIcon.sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+                }
+                else
+                {
+                    itemIcon.sprite = GUIManager.instance.emptySprite;
+                }
+                
+                itemName.text = item.UIData?.itemName ?? item.name;
+                buyButtonText.text = price < 9000 ? $"Buy ({price})" : "N/A";
+                
+                bool canAfford = currentCoins >= price && price < 9000;
+                buyButton.interactable = canAfford;
+                
+                buyButton.onClick.AddListener(() => TryToBuyItem(item, price));
+            }
         }
-        else
-        {
-            // Use the game's default empty sprite as a fallback
-            itemIcon.sprite = GUIManager.instance.emptySprite;
-        }
-        
-        itemName.text = item.UIData?.itemName ?? item.name;
-        buyButtonText.text = price < 9000 ? $"Buy ({price})" : "N/A";
-        
-        bool canAfford = currentCoins >= price && price < 9000;
-        buyButton.interactable = canAfford;
-        
-        // Add a listener to the button to handle the purchase
-        buyButton.onClick.AddListener(() => TryToBuyItem(item, price));
-    }
-}
         
         private static void InitializeItemList()
         {
@@ -175,10 +162,14 @@ private void PopulateShop()
 
         private void TryToBuyItem(Item itemPrefab, int price)
         {
-            if (PlayerCoinManager.HostInstance == null) return;
-            if (PlayerCoinManager.HostInstance.SharedCoins < price) return;
+            var coinManager = Player.localPlayer.GetComponent<PlayerCoinManager>();
+            if (coinManager == null) return;
+            
+            // Client-side check
+            if (coinManager.SharedCoins < price) return;
 
-            PlayerCoinManager.HostInstance.photonView.RPC("RPC_Request_ModifyCoins", PlayerCoinManager.HostInstance.photonView.Owner, -price);
+            // Send the request to the host
+            coinManager.RequestModifyCoins(-price);
             CoinPlugin.Log.LogInfo($"Requested to buy {itemPrefab.UIData.itemName} for {price} coins.");
 
             if (Character.localCharacter != null)
@@ -187,6 +178,9 @@ private void PopulateShop()
                 PhotonNetwork.Instantiate("0_Items/" + itemPrefab.name, spawnPos, Quaternion.identity);
             }
             
+            // The UI will refresh automatically when the update RPC is received.
+            // For instant feedback, we can disable the button locally.
+            // But we will just refresh the whole shop for simplicity.
             PopulateShop();
         }
         
