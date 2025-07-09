@@ -45,23 +45,18 @@
         <HintPath>C:\Program Files (x86)\Steam\steamapps\common\PEAK\PEAK_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
         <Private>false</Private>
     </Reference>
-    
-    <!-- THIS IS THE NEW REFERENCE YOU NEED -->
     <Reference Include="UnityEngine.UIModule" Publicize="true">
         <HintPath>C:\Program Files (x86)\Steam\steamapps\common\PEAK\PEAK_Data\Managed\UnityEngine.UIModule.dll</HintPath>
         <Private>false</Private>
     </Reference>
-
     <Reference Include="UnityEngine.UI" Publicize="true">
         <HintPath>C:\Program Files (x86)\Steam\steamapps\common\PEAK\PEAK_Data\Managed\UnityEngine.UI.dll</HintPath>
         <Private>false</Private>
     </Reference>
-
     <Reference Include="Unity.TextMeshPro" Publicize="true">
         <HintPath>C:\Program Files (x86)\Steam\steamapps\common\PEAK\PEAK_Data\Managed\Unity.TextMeshPro.dll</HintPath>
         <Private>false</Private>
     </Reference>
-    
     <Reference Include="Sirenix.Serialization" Publicize="true">
         <HintPath>C:\Program Files (x86)\Steam\steamapps\common\PEAK\PEAK_Data\Managed\Sirenix.Serialization.dll</HintPath>
         <Private>false</Private>
@@ -84,5 +79,12 @@
         <HintPath>C:\Program Files (x86)\Steam\steamapps\common\PEAK\PEAK_Data\Managed\PhotonRealtime.dll</HintPath>
         <Private>false</Private>
     </Reference>
+    
+    <!-- THIS IS THE NEW REFERENCE YOU NEED -->
+    <Reference Include="Photon3Unity3D" Publicize="true">
+        <HintPath>C:\Program Files (x86)\Steam\steamapps\common\PEAK\PEAK_Data\Managed\Photon3Unity3D.dll</HintPath>
+        <Private>false</Private>
+    </Reference>
+
   </ItemGroup>
 </Project>

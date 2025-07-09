@@ -48,10 +48,15 @@ namespace CoinMod.Patches
         {
             if (__instance.Lit && interactor.data.currentItem == null)
             {
-                // Call the new instance method, passing the campfire itself.
+                // --- THE FIX ---
+                // Add a null check to ensure the ShopManager has been created before we try to use it.
                 if (ShopManager.Instance != null)
                 {
                     ShopManager.Instance.OpenShopGUI(__instance);
+                }
+                else
+                {
+                    CoinPlugin.Log.LogError("ShopManager.Instance is null! Cannot open shop.");
                 }
                 
                 return false; 
