@@ -6,16 +6,15 @@ using UnityEngine;
 
 namespace CoinMod
 {
-    [BepInPlugin("com.lansmurf.peakcoinmod", "Peak Coin Mod", "3.2.0")]
+    [BepInPlugin("com.lansmurf.peakcoinmod", "Peak Coin Mod", "4.1.0")] // Final, working version
     public class CoinPlugin : BaseUnityPlugin
     {
         internal static ManualLogSource Log;
-        private static bool hasInitialized = false;
-
+        
         private void Awake()
         {
             Log = Logger;
-            Log.LogInfo("Peak Coin Mod v3.2.0 is loading!");
+            Log.LogInfo("Peak Coin Mod v4.1.0 is loading!");
             
             var harmony = new Harmony("com.lansmurf.peakcoinmod.harmony");
             harmony.PatchAll();
@@ -27,44 +26,40 @@ namespace CoinMod
 
         private IEnumerator InitializeWhenReady()
         {
-            yield return new WaitUntil(() => Character.localCharacter != null && GUIManager.instance != null);
-
-            if (hasInitialized) yield break;
-            hasInitialized = true;
+            // Wait until the game is fully loaded and the player exists.
+            yield return new WaitUntil(() => Player.localPlayer != null);
 
             Log.LogInfo("Game is ready! Initializing PeakCoinMod systems...");
             
+            GameObject modHostObject = new GameObject("PeakCoinMod_Systems");
+            DontDestroyOnLoad(modHostObject);
+
+            // Add the components. Their Awake() methods will set their Instances.
+            // They will handle creating their own UI when needed.
+            modHostObject.AddComponent<ShopManager>();
+            modHostObject.AddComponent<CoinUI>();
+
+            // The calls to InitializeUI() have been REMOVED. This fixes the build error.
+
+            // Patch Player.Awake to add our coin manager component.
             var harmony = new Harmony("com.lansmurf.peakcoinmod.player_setup");
             harmony.Patch(
                 original: AccessTools.Method(typeof(Player), "Awake"),
                 postfix: new HarmonyMethod(AccessTools.Method(typeof(CoinPlugin), nameof(PlayerAwakePostfix)))
             );
-
-            if (Player.localPlayer != null && Player.localPlayer.GetComponent<PlayerCoinManager>() == null)
+            
+            // Manually add to the local player since their Awake() has already run.
+            if (Player.localPlayer.GetComponent<PlayerCoinManager>() == null)
             {
                 Player.localPlayer.gameObject.AddComponent<PlayerCoinManager>();
-                Log.LogInfo($"Added PlayerCoinManager to already-existing local player.");
             }
-            
-            GameObject modHostObject = new GameObject("PeakCoinMod_Systems");
-            DontDestroyOnLoad(modHostObject);
-
-            modHostObject.AddComponent<ShopManager>();
-            
-            var coinUI = modHostObject.AddComponent<CoinUI>();
-            coinUI.Initialize();
-            coinUI.SetCanvasParent(GUIManager.instance.hudCanvas.transform);
-            
-            // --- THE FIX FOR UI VISIBILITY ---
-            modHostObject.SetActive(true);
         }
-
+        
         public static void PlayerAwakePostfix(Player __instance)
         {
             if (__instance.gameObject.GetComponent<PlayerCoinManager>() == null)
             {
                 __instance.gameObject.AddComponent<PlayerCoinManager>();
-                Log.LogInfo($"Added PlayerCoinManager to player: {__instance.photonView.Owner.NickName}");
             }
         }
     }

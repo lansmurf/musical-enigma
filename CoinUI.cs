@@ -1,59 +1,67 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace CoinMod
 {
     public class CoinUI : MonoBehaviour
     {
         public static CoinUI Instance { get; private set; }
-        
         private TextMeshProUGUI coinText;
+        private Canvas canvas;
 
-        public void Initialize()
+        void Awake()
         {
-            if (Instance != null)
-            {
-                Destroy(gameObject);
-                return;
-            }
+            if (Instance != null) { Destroy(gameObject); return; }
             Instance = this;
+        }
 
-            coinText = gameObject.AddComponent<TextMeshProUGUI>();
+        void Start()
+        {
+            // Create the UI when this component starts. By this time, the game is loaded.
+            CreateCoinUICanvas();
+        }
+
+        private void CreateCoinUICanvas()
+        {
+            var canvasGo = new GameObject("PeakCoinMod_CoinCanvas");
+            canvas = canvasGo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 99; // Render on top, but below the shop
+            canvasGo.AddComponent<CanvasScaler>();
+            canvasGo.AddComponent<GraphicRaycaster>();
+            DontDestroyOnLoad(canvasGo);
             
-            // Apply styling from the game's UI for a native look.
-            var templateText = GUIManager.instance.interactNameText;
+            GameObject uiObject = new GameObject("CoinCounterText");
+            uiObject.transform.SetParent(canvasGo.transform, false);
+            
+            coinText = uiObject.AddComponent<TextMeshProUGUI>();
+            
+            // Try to copy style from the game for a native look
+            var templateText = GUIManager.instance?.interactNameText;
             if (templateText != null)
             {
-                CoinPlugin.Log.LogInfo("Applying UI style from game's interact text.");
                 coinText.font = templateText.font;
                 coinText.fontMaterial = templateText.fontMaterial;
-                coinText.fontSize = templateText.fontSize;
-                coinText.color = Color.yellow; // We can override color if we want.
+                coinText.fontSize = 24;
+                coinText.color = Color.yellow;
                 coinText.alignment = TextAlignmentOptions.Left;
             }
-            else
+            else // Fallback style
             {
-                CoinPlugin.Log.LogWarning("Could not find UI template, using basic style.");
                 coinText.fontSize = 24;
                 coinText.color = Color.white;
             }
-        }
-        
-        // This method positions our UI element on the main game canvas.
-        public void SetCanvasParent(Transform canvasParent)
-        {
-            transform.SetParent(canvasParent, false);
-
-            RectTransform rect = GetComponent<RectTransform>();
-            if (rect == null) rect = gameObject.AddComponent<RectTransform>();
+            
+            RectTransform rect = uiObject.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0, 1);
             rect.anchorMax = new Vector2(0, 1);
             rect.pivot = new Vector2(0, 1);
             rect.anchoredPosition = new Vector2(20, -20);
+            
+            UpdateCoinCount(0); // Set initial text
         }
-
-        // This is the only method needed to update the display.
-        // It is called by PlayerCoinManager when it receives an update from the host.
+        
         public void UpdateCoinCount(int newAmount)
         {
             if (coinText != null)
