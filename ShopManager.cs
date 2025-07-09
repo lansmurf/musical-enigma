@@ -6,36 +6,30 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Photon.Pun;
+using System;
 
 namespace CoinMod
 {
     public class ShopManager : MonoBehaviour
     {
         public static ShopManager Instance { get; private set; }
-        public bool isShopOpen { get; private set; } = false; // Public getter for the patch
+        public bool isShopOpen { get; private set; } = false;
         private Campfire activeCampfire;
         private const float MaxInteractionDistance = 10f;
 
+        // UI References
         private GameObject shopPanel;
-        private RectTransform contentRect;
+        private RectTransform itemContentRect;
         private TextMeshProUGUI coinText;
         private GameObject itemListingPrefab;
+        private RectTransform categoryButtonContainer;
+        private GameObject categoryButtonPrefab;
+
+        // Data & State
         private static List<Item> allItems = new List<Item>();
         private static bool hasInitializedItems = false;
-        
-        // You can keep your pricing data here...
-        private static readonly int DefaultPrice = 25;
-        private static readonly Dictionary<string, int> ItemPrices = new Dictionary<string, int>
-        {
-            { "Stone", 2 }, { "FireWood", 2 }, { "Marshmallow", 4 }, { "Item_Coconut_half", 4 }, { "Egg", 5 }, { "Frisbee", 3 }, { "Berrynana Peel Blue Variant", 5 }, { "Bugfix", 2 },
-            { "Flare", 6 }, { "Bandages", 8 }, { "Airplane Food", 9 }, { "Granola Bar", 9 }, { "Sports Drink", 10 }, { "ScoutCookies", 10 }, { "TrailMix", 11 }, { "Heat Pack", 11 }, { "Item_Coconut", 12 }, { "MedicinalRoot", 13 },
-            { "Binoculars", 15 }, { "Parasol", 18 }, { "Compass", 20 }, { "Piton", 20 }, { "RopeSpool", 22 }, { "Lantern", 25 }, { "Energy Drink", 15 }, { "Antidote", 28 }, { "Cure-Some", 25 },
-            { "FirstAidKit", 30 }, { "EnergyElixir", 32 }, { "RopeShooter", 38 }, { "ChainShooter", 40 }, { "RopeShooterAnti", 42 }, { "PortableStovetopItem", 45 }, { "Backpack", 60 },
-            { "Cure-All", 65 }, { "Lantern_Faerie", 70 }, { "Warp Compass", 75 }, { "Pirate Compass", 80 }, { "Bugle_Magic", 88 }, { "MagicBean", 90 }, { "PandorasBox", 125 }, { "Cursed Skull", 100 }, { "ScoutEffigy", 75 },
-            { "Anti-Rope Spool", 22 }, { "Beehive", 15 }, { "NestEgg", 20 }, { "Lollipop", 10 }, { "HealingDart Variant", 35 }, { "BounceShroom", 8 }, { "Bugle", 18 }, { "Mushroom Lace", 8 }, { "Mushroom Normie Poison", 5 }, { "CactusBall", 8 }, { "Mushroom Chubby", 6 }, { "Mushroom Cluster Poison", 6 }, { "Shell Big", 15 }, { "Item_Honeycomb", 12 }, { "Megaphone", 12 }, { "HealingPuffShroom", 15 }, { "Pepper Berry", 8 }, { "Bugle_Scoutmaster Variant", 45 }, { "ShelfShroom", 5 }, { "Strange Gem", 50 }, { "Flag_Plantable_Seagull", 10 }, { "Mushroom Glow", 8 }, { "Wonderberry", 12 },
-            { "Clusterberry Black", 8 }, { "Clusterberry Red", 8 }, { "Clusterberry Yellow", 8 }, { "Clusterberry_UNUSED", 8 }, { "Apple Berry Green", 6 }, { "Apple Berry Red", 6 }, { "Apple Berry Yellow", 6 }, { "Kingberry Green", 10 }, { "Kingberry Purple", 10 }, { "Kingberry Yellow", 10 }, { "Berrynana Blue", 8 }, { "Berrynana Brown", 8 }, { "Berrynana Pink", 8 }, { "Berrynana Yellow", 8 }, { "Napberry", 9 }, { "Winterberry Orange", 8 }, { "Winterberry Yellow", 8 },
-            { "BingBong", 9999 }, { "Passport", 9999 }, { "Guidebook", 9999 }, { "GuidebookPageScroll Variant", 999 }, { "GuidebookPage_4_BodyHeat Variant", 999 },
-        };
+        private ItemCategory currentCategory = ItemCategory.All;
+        private Dictionary<ItemCategory, Button> categoryButtons = new Dictionary<ItemCategory, Button>();
 
         void Awake()
         {
@@ -50,58 +44,85 @@ namespace CoinMod
                 CloseShopGUI();
             }
         }
-
+        
         public void OpenShopGUI(Campfire campfire)
-{
-    if (isShopOpen) return;
-    
-    if (shopPanel == null)
-    {
-        CreateShopUI();
-    }
-    
-    activeCampfire = campfire;
-    isShopOpen = true; // Our patch will now see this is true
-    shopPanel.SetActive(true);
-    
-    if (!hasInitializedItems) InitializeItemList();
-    PopulateShop();
-}
-
-public void CloseShopGUI()
-{
-    if (!isShopOpen) return;
-
-    activeCampfire = null;
-    isShopOpen = false; // Our patch will now see this is false
-    shopPanel.SetActive(false);
-}
-        private void PopulateShop()
         {
-            foreach (Transform child in contentRect) { Destroy(child.gameObject); }
+            if (isShopOpen) return;
+            if (shopPanel == null) CreateShopUI();
+            
+            activeCampfire = campfire;
+            isShopOpen = true;
+            shopPanel.SetActive(true);
+            
+            if (!hasInitializedItems) InitializeItemList();
+            
+            SetCategory(ItemCategory.All);
+        }
+
+        public void CloseShopGUI()
+        {
+            if (!isShopOpen) return;
+            activeCampfire = null;
+            isShopOpen = false;
+            shopPanel.SetActive(false);
+        }
+
+        private void SetCategory(ItemCategory category)
+        {
+            currentCategory = category;
+            
+            foreach (var catButton in categoryButtons)
+            {
+                var image = catButton.Value.GetComponent<Image>();
+                if (image != null)
+                {
+                    image.color = (catButton.Key == currentCategory)
+                        ? new Color(0.3f, 0.5f, 0.8f) // Active/Selected color
+                        : new Color(0.15f, 0.25f, 0.4f); // Normal color
+                }
+            }
+            
+            PopulateItemGrid();
+        }
+
+        private void PopulateItemGrid()
+        {
+            foreach (Transform child in itemContentRect) { Destroy(child.gameObject); }
 
             int currentCoins = Player.localPlayer?.GetComponent<PlayerCoinManager>()?.SharedCoins ?? 0;
             coinText.text = $"Team Coins: {currentCoins}";
 
-            foreach (var item in allItems)
+            var itemsToDisplay = allItems
+                .Select(item => {
+                    ShopDatabase.ItemData.TryGetValue(item.name, out var data);
+                    return new {
+                        Item = item,
+                        Price = data?.Price ?? ShopDatabase.DefaultPrice,
+                        Category = data?.Category ?? ItemCategory.Special
+                    };
+                })
+                .Where(x => ShopDatabase.ItemData.ContainsKey(x.Item.name))
+                .Where(x => currentCategory == ItemCategory.All || x.Category == currentCategory)
+                .OrderBy(x => x.Price);
+
+            foreach (var itemData in itemsToDisplay)
             {
-                if (!ItemPrices.TryGetValue(item.name, out int price)) price = DefaultPrice;
-                GameObject newItemEntry = Instantiate(itemListingPrefab, contentRect);
+                GameObject newItemEntry = Instantiate(itemListingPrefab, itemContentRect);
                 Image itemIcon = newItemEntry.transform.Find("ItemIcon").GetComponent<Image>();
                 TextMeshProUGUI itemName = newItemEntry.transform.Find("ItemName").GetComponent<TextMeshProUGUI>();
                 Button buyButton = newItemEntry.transform.Find("BuyButton").GetComponent<Button>();
                 TextMeshProUGUI buyButtonText = buyButton.GetComponentInChildren<TextMeshProUGUI>();
 
-                if (item.UIData?.icon != null) {
-                    Texture2D tex = item.UIData.icon;
+                if (itemData.Item.UIData?.icon != null) {
+                    Texture2D tex = itemData.Item.UIData.icon;
                     itemIcon.sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
                 }
                 
-                itemName.text = item.UIData?.itemName ?? item.name;
-                buyButtonText.text = price < 9000 ? $"Buy ({price})" : "N/A";
-                buyButton.interactable = currentCoins >= price && price < 9000;
+                itemName.text = itemData.Item.UIData?.itemName ?? itemData.Item.name;
+                buyButtonText.text = $"Buy ({itemData.Price})";
+                buyButton.interactable = currentCoins >= itemData.Price;
                 buyButton.onClick.RemoveAllListeners();
-                buyButton.onClick.AddListener(() => TryToBuyItem(item, price));
+                buyButton.onClick.AddListener(() => TryToBuyItem(itemData.Item, itemData.Price));
                 newItemEntry.SetActive(true);
             }
         }
@@ -111,11 +132,13 @@ public void CloseShopGUI()
             var uniqueItems = new Dictionary<string, Item>();
             var foundItems = Resources.FindObjectsOfTypeAll<Item>();
             foreach (var item in foundItems) {
-                if (item != null && item.gameObject.scene.handle == 0 && !string.IsNullOrEmpty(item.UIData?.itemName)) {
-                    if (!uniqueItems.ContainsKey(item.UIData.itemName)) { uniqueItems.Add(item.UIData.itemName, item); }
+                if (item != null && item.gameObject.scene.handle == 0 && !string.IsNullOrEmpty(item.UIData?.itemName) && ShopDatabase.ItemData.ContainsKey(item.name)) {
+                    if (!uniqueItems.ContainsKey(item.UIData.itemName)) {
+                        uniqueItems.Add(item.UIData.itemName, item);
+                    }
                 }
             }
-            allItems = uniqueItems.Values.OrderBy(item => item.UIData.itemName).ToList();
+            allItems = uniqueItems.Values.ToList();
             hasInitializedItems = true;
         }
 
@@ -128,7 +151,7 @@ public void CloseShopGUI()
                 Vector3 spawnPos = Character.localCharacter.Center + Character.localCharacter.transform.forward * 1.5f + Vector3.up * 0.5f;
                 PhotonNetwork.Instantiate("0_Items/" + itemPrefab.name, spawnPos, Quaternion.identity);
             }
-            PopulateShop();
+            PopulateItemGrid(); 
         }
 
         private void CreateShopUI()
@@ -148,8 +171,7 @@ public void CloseShopGUI()
             var rt = shopPanel.GetComponent<RectTransform>();
             rt.anchorMin = new Vector2(0.5f, 0.5f); rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
-            // --- UI SIZE FIX: Increased the size of the shop panel as requested ---
-            rt.sizeDelta = new Vector2(600, 750);
+            rt.sizeDelta = new Vector2(1000, 750);
 
             var titleGo = new GameObject("Title");
             titleGo.transform.SetParent(shopPanel.transform, false);
@@ -160,101 +182,189 @@ public void CloseShopGUI()
             titleRt.anchorMin = new Vector2(0, 1); titleRt.anchorMax = new Vector2(1, 1);
             titleRt.pivot = new Vector2(0.5f, 1); titleRt.anchoredPosition = new Vector2(0, -20);
 
-            var coinGo = new GameObject("CoinText");
-            coinGo.transform.SetParent(shopPanel.transform, false);
-            coinText = coinGo.AddComponent<TextMeshProUGUI>();
+            coinText = new GameObject("CoinText").AddComponent<TextMeshProUGUI>();
+            coinText.transform.SetParent(shopPanel.transform, false);
             coinText.fontSize = 20; coinText.color = Color.yellow;
             coinText.alignment = TextAlignmentOptions.Center;
-            var coinRt = coinGo.GetComponent<RectTransform>();
+            var coinRt = coinText.GetComponent<RectTransform>();
             coinRt.anchorMin = new Vector2(0, 1); coinRt.anchorMax = new Vector2(1, 1);
             coinRt.pivot = new Vector2(0.5f, 1); coinRt.anchoredPosition = new Vector2(0, -60);
             
-            var scrollGo = new GameObject("ScrollView");
-            scrollGo.transform.SetParent(shopPanel.transform, false);
-            var scrollRect = scrollGo.AddComponent<ScrollRect>();
-            var scrollImage = scrollGo.AddComponent<Image>();
-            scrollImage.color = new Color(0, 0, 0, 0.5f);
-            var scrollRt = scrollGo.GetComponent<RectTransform>();
-            scrollRt.anchorMin = new Vector2(0, 0); scrollRt.anchorMax = new Vector2(1, 1);
-            scrollRt.pivot = new Vector2(0.5f, 0.5f); scrollRt.anchoredPosition = new Vector2(0, -40);
-            scrollRt.sizeDelta = new Vector2(-40, -150);
+            var categoryPanel = new GameObject("CategoryPanel", typeof(RectTransform));
+            categoryPanel.transform.SetParent(shopPanel.transform, false);
+            categoryPanel.AddComponent<Image>().color = new Color(0.05f, 0.05f, 0.05f, 0.8f);
+            var categoryRt = categoryPanel.GetComponent<RectTransform>();
+            
+            // --- THIS IS THE FIX for the panel layout ---
+            // We anchor the category panel to the left side of the main shop panel.
+            categoryRt.anchorMin = new Vector2(0, 0);
+            categoryRt.anchorMax = new Vector2(0, 1);
+            categoryRt.pivot = new Vector2(0, 1); // Top-left pivot
+            // Set position and size using offsets from the edges.
+            // Left: 20px, Right: 1000 - 220 = 780px, Top: 100px, Bottom: 80px
+            categoryRt.offsetMin = new Vector2(20, 80);  // Left, Bottom
+            categoryRt.offsetMax = new Vector2(220, -100); // -Right, -Top
 
-            var viewportGo = new GameObject("Viewport");
-            viewportGo.transform.SetParent(scrollGo.transform, false);
+            var containerGo = new GameObject("CategoryButtonContainer", typeof(RectTransform));
+            containerGo.transform.SetParent(categoryPanel.transform, false);
+            categoryButtonContainer = containerGo.GetComponent<RectTransform>();
+            // Make the button container fill the category panel
+            categoryButtonContainer.anchorMin = Vector2.zero;
+            categoryButtonContainer.anchorMax = Vector2.one;
+            categoryButtonContainer.sizeDelta = Vector2.zero;
+            var vlg = containerGo.AddComponent<VerticalLayoutGroup>();
+            vlg.padding = new RectOffset(10, 10, 10, 10); vlg.spacing = 10;
+            vlg.childForceExpandHeight = false;
+
+            var itemPanel = new GameObject("ItemPanel", typeof(RectTransform));
+            itemPanel.transform.SetParent(shopPanel.transform, false);
+            // Anchor the item panel to stretch in the remaining space.
+            var itemPanelRt = itemPanel.GetComponent<RectTransform>();
+            itemPanelRt.anchorMin = new Vector2(0, 0);
+            itemPanelRt.anchorMax = new Vector2(1, 1);
+            // Left: 240px (220 from cat panel + 20 gap), Right: 20px, Top: 100px, Bottom: 80px
+            itemPanelRt.offsetMin = new Vector2(240, 80);
+            itemPanelRt.offsetMax = new Vector2(-20, -100);
+
+            var scrollRect = itemPanel.AddComponent<ScrollRect>();
+            itemPanel.AddComponent<Image>().color = new Color(0, 0, 0, 0.5f);
+            scrollRect.horizontal = false; scrollRect.vertical = true;
+            
+            var viewportGo = new GameObject("Viewport", typeof(RectTransform));
+            viewportGo.transform.SetParent(itemPanel.transform, false);
             viewportGo.AddComponent<Mask>().showMaskGraphic = false;
             viewportGo.AddComponent<Image>();
             var viewportRt = viewportGo.GetComponent<RectTransform>();
             viewportRt.anchorMin = Vector2.zero; viewportRt.anchorMax = Vector2.one;
             viewportRt.sizeDelta = Vector2.zero; viewportRt.pivot = new Vector2(0, 1);
 
-            var contentGo = new GameObject("Content");
-            contentRect = contentGo.AddComponent<RectTransform>();
-            contentRect.transform.SetParent(viewportGo.transform, false);
-            contentRect.anchorMin = new Vector2(0, 1); contentRect.anchorMax = new Vector2(1, 1);
-            contentRect.pivot = new Vector2(0.5f, 1); contentRect.sizeDelta = new Vector2(0, 0);
-
-            var vlg = contentGo.AddComponent<VerticalLayoutGroup>();
-            vlg.padding = new RectOffset(10, 10, 10, 10); vlg.spacing = 5;
-            vlg.childControlHeight = false; // Correct layout setting
-            vlg.childControlWidth = true;
-            vlg.childForceExpandHeight = false;
-            vlg.childForceExpandWidth = true;
-
+            var contentGo = new GameObject("ItemContent", typeof(RectTransform));
+            contentGo.transform.SetParent(viewportGo.transform, false);
+            itemContentRect = contentGo.GetComponent<RectTransform>();
+            itemContentRect.anchorMin = new Vector2(0, 1); itemContentRect.anchorMax = new Vector2(1, 1);
+            itemContentRect.pivot = new Vector2(0.5f, 1);
+            
+            var gridLayout = contentGo.AddComponent<GridLayoutGroup>();
+            gridLayout.padding = new RectOffset(15, 15, 15, 15);
+            gridLayout.spacing = new Vector2(15, 15);
+            gridLayout.cellSize = new Vector2(150, 180);
+            gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            gridLayout.constraintCount = 4;
+            
             var csf = contentGo.AddComponent<ContentSizeFitter>();
             csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            scrollRect.viewport = viewportRt; scrollRect.content = contentRect;
-            
-            var closeGo = new GameObject("CloseButton");
-            closeGo.transform.SetParent(shopPanel.transform, false);
-            var closeButton = closeGo.AddComponent<Button>();
-            var closeImage = closeGo.AddComponent<Image>();
-            closeImage.color = new Color(0.8f, 0.2f, 0.2f);
-            var closeRt = closeGo.GetComponent<RectTransform>();
+            scrollRect.viewport = viewportRt; scrollRect.content = itemContentRect;
+
+            var closeButton = new GameObject("CloseButton", typeof(RectTransform)).AddComponent<Button>();
+            closeButton.transform.SetParent(shopPanel.transform, false);
+            closeButton.gameObject.AddComponent<Image>().color = new Color(0.8f, 0.2f, 0.2f);
+            var closeRt = closeButton.GetComponent<RectTransform>();
             closeRt.anchorMin = new Vector2(0.5f, 0); closeRt.anchorMax = new Vector2(0.5f, 0);
             closeRt.pivot = new Vector2(0.5f, 0); closeRt.sizeDelta = new Vector2(150, 40);
             closeRt.anchoredPosition = new Vector2(0, 20);
 
-            var closeTextGo = new GameObject("Text");
-            closeTextGo.transform.SetParent(closeGo.transform, false);
-            var closeText = closeTextGo.AddComponent<TextMeshProUGUI>();
+            var closeText = new GameObject("Text").AddComponent<TextMeshProUGUI>();
+            closeText.transform.SetParent(closeButton.transform, false);
             closeText.text = "Close"; closeText.color = Color.white;
-            closeText.alignment = TextAlignmentOptions.Center; closeText.fontSize = 20;
+            closeText.alignment = TextAlignmentOptions.Center;
+            closeText.fontSize = 20;
             closeButton.onClick.AddListener(CloseShopGUI);
             
             CreateItemListingPrefab();
+            CreateCategoryButtonPrefab();
+            
+            PopulateCategoryTabs();
             
             shopPanel.SetActive(false);
+        }
+        
+        private void PopulateCategoryTabs()
+        {
+            foreach (Transform child in categoryButtonContainer) { Destroy(child.gameObject); }
+            categoryButtons.Clear();
+
+            foreach (ItemCategory categoryValue in Enum.GetValues(typeof(ItemCategory)))
+            {
+                ItemCategory localCategory = categoryValue;
+                GameObject buttonGo = Instantiate(categoryButtonPrefab, categoryButtonContainer);
+                var buttonText = buttonGo.GetComponentInChildren<TextMeshProUGUI>();
+                buttonText.text = localCategory.ToString();
+                
+                var button = buttonGo.GetComponent<Button>();
+                button.onClick.AddListener(() => SetCategory(localCategory));
+                
+                categoryButtons[localCategory] = button;
+                
+                buttonGo.SetActive(true);
+            }
         }
 
         private void CreateItemListingPrefab()
         {
             itemListingPrefab = new GameObject("ItemListingPrefab");
             itemListingPrefab.AddComponent<Image>().color = new Color(0.2f, 0.2f, 0.2f, 1f);
-            itemListingPrefab.AddComponent<LayoutElement>().minHeight = 50;
-            var hlg = itemListingPrefab.AddComponent<HorizontalLayoutGroup>();
-            hlg.padding = new RectOffset(5, 5, 5, 5); hlg.spacing = 10;
-            hlg.childAlignment = TextAnchor.MiddleLeft;
-            var iconGo = new GameObject("ItemIcon");
+            
+            var vlg = itemListingPrefab.AddComponent<VerticalLayoutGroup>();
+            vlg.padding = new RectOffset(5, 5, 5, 5);
+            vlg.spacing = 5;
+            vlg.childAlignment = TextAnchor.UpperCenter;
+            vlg.childForceExpandHeight = false;
+            vlg.childForceExpandWidth = true;
+
+            var iconGo = new GameObject("ItemIcon", typeof(RectTransform));
             iconGo.transform.SetParent(itemListingPrefab.transform, false);
             iconGo.AddComponent<Image>();
-            iconGo.AddComponent<LayoutElement>().preferredWidth = 40;
-            var nameGo = new GameObject("ItemName");
+            var iconLayout = iconGo.AddComponent<LayoutElement>();
+            iconLayout.minHeight = 80;
+            iconLayout.preferredHeight = 80;
+
+            var nameGo = new GameObject("ItemName", typeof(RectTransform));
             nameGo.transform.SetParent(itemListingPrefab.transform, false);
             var nameText = nameGo.AddComponent<TextMeshProUGUI>();
-            nameText.color = Color.white; nameText.fontSize = 18;
-            nameGo.AddComponent<LayoutElement>().flexibleWidth = 1;
-            var buttonGo = new GameObject("BuyButton");
+            nameText.color = Color.white;
+            nameText.fontSize = 16;
+            nameText.alignment = TextAlignmentOptions.Center;
+            nameGo.AddComponent<LayoutElement>().minHeight = 40;
+
+            var buttonGo = new GameObject("BuyButton", typeof(RectTransform));
             buttonGo.transform.SetParent(itemListingPrefab.transform, false);
             buttonGo.AddComponent<Button>();
             buttonGo.AddComponent<Image>().color = new Color(0.2f, 0.5f, 0.2f);
             var buttonLayout = buttonGo.AddComponent<LayoutElement>();
-            buttonLayout.minWidth = 100; buttonLayout.preferredWidth = 100;
-            var buttonTextGo = new GameObject("Text");
+            buttonLayout.minHeight = 30;
+            buttonLayout.preferredHeight = 30;
+
+            var buttonTextGo = new GameObject("Text", typeof(RectTransform));
             buttonTextGo.transform.SetParent(buttonGo.transform, false);
             var buttonText = buttonTextGo.AddComponent<TextMeshProUGUI>();
-            buttonText.color = Color.white; buttonText.fontSize = 16;
+            buttonText.color = Color.white;
+            buttonText.fontSize = 14;
             buttonText.alignment = TextAlignmentOptions.Center;
+            
             itemListingPrefab.SetActive(false);
+        }
+
+        private void CreateCategoryButtonPrefab()
+        {
+            categoryButtonPrefab = new GameObject("CategoryButtonPrefab");
+            var image = categoryButtonPrefab.AddComponent<Image>();
+            image.color = new Color(0.15f, 0.25f, 0.4f);
+            categoryButtonPrefab.AddComponent<LayoutElement>().minHeight = 50;
+            
+            var button = categoryButtonPrefab.AddComponent<Button>();
+            var colors = button.colors;
+            colors.highlightedColor = new Color(0.2f, 0.4f, 0.6f);
+            colors.pressedColor = new Color(0.1f, 0.2f, 0.3f);
+            button.colors = colors;
+            
+            var textGo = new GameObject("Text", typeof(RectTransform));
+            textGo.transform.SetParent(categoryButtonPrefab.transform, false);
+            var text = textGo.AddComponent<TextMeshProUGUI>();
+            text.color = Color.white;
+            text.fontSize = 20;
+            text.alignment = TextAlignmentOptions.Center;
+            
+            categoryButtonPrefab.SetActive(false);
         }
     }
 }

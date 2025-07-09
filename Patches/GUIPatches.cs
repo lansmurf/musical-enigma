@@ -8,8 +8,6 @@ namespace CoinMod.Patches
     [HarmonyPatch(typeof(GUIManager))]
     public static class GUIManagerPatches
     {
-        // Use Harmony's AccessTools to find the private backing fields for the properties.
-        // The compiler generates these fields with "weird" names.
         private static FieldInfo _windowShowingCursorField = AccessTools.Field(typeof(GUIManager), "<windowShowingCursor>k__BackingField");
         private static FieldInfo _windowBlockingInputField = AccessTools.Field(typeof(GUIManager), "<windowBlockingInput>k__BackingField");
 
@@ -17,21 +15,25 @@ namespace CoinMod.Patches
         [HarmonyPostfix]
         public static void ForceCursorStateForShop(GUIManager __instance)
         {
-            // First, check that our reflection was successful to prevent errors.
+            // --- THIS IS THE FIX ---
+            // First, check if our ShopManager even exists yet. If it doesn't (like in the main menu),
+            // do nothing. This prevents the startup crash.
+            if (ShopManager.Instance == null)
+            {
+                return;
+            }
+
             if (_windowShowingCursorField == null || _windowBlockingInputField == null)
             {
-                if (ShopManager.Instance != null && ShopManager.Instance.isShopOpen)
+                if (ShopManager.Instance.isShopOpen)
                 {
                      CoinPlugin.Log.LogError("Could not find GUIManager fields! Cursor will not work.");
                 }
                 return;
             }
-
-            // If our shop is open...
-            if (ShopManager.Instance != null && ShopManager.Instance.isShopOpen)
+            
+            if (ShopManager.Instance.isShopOpen)
             {
-                // ...force the game to believe a window is showing a cursor and blocking input.
-                // We are writing directly to the private fields, bypassing the read-only property.
                 _windowShowingCursorField.SetValue(__instance, true);
                 _windowBlockingInputField.SetValue(__instance, true);
             }
