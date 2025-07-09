@@ -8,7 +8,6 @@ namespace CoinMod
         public static CoinUI Instance { get; private set; }
         
         private TextMeshProUGUI coinText;
-        private int lastDisplayedCoins = -1;
 
         public void Initialize()
         {
@@ -21,30 +20,26 @@ namespace CoinMod
 
             coinText = gameObject.AddComponent<TextMeshProUGUI>();
             
-            // --- THE NEW, IMPROVED STYLING ---
+            // Apply styling from the game's UI for a native look.
             var templateText = GUIManager.instance.interactNameText;
             if (templateText != null)
             {
                 CoinPlugin.Log.LogInfo("Applying UI style from game's interact text.");
-                // Copy the essential properties for a perfect match
                 coinText.font = templateText.font;
-                coinText.fontMaterial = templateText.fontMaterial; // This is the key for outlines/effects
+                coinText.fontMaterial = templateText.fontMaterial;
                 coinText.fontSize = templateText.fontSize;
-                coinText.color = templateText.color; // Use the game's exact text color
+                coinText.color = Color.yellow; // We can override color if we want.
                 coinText.alignment = TextAlignmentOptions.Left;
-                
-                // We no longer need to manually set outline properties,
-                // as they are inherited from the fontMaterial.
             }
             else
             {
-                // Fallback to basic styling if the template isn't found
                 CoinPlugin.Log.LogWarning("Could not find UI template, using basic style.");
                 coinText.fontSize = 24;
                 coinText.color = Color.white;
             }
         }
         
+        // This method positions our UI element on the main game canvas.
         public void SetCanvasParent(Transform canvasParent)
         {
             transform.SetParent(canvasParent, false);
@@ -57,18 +52,8 @@ namespace CoinMod
             rect.anchoredPosition = new Vector2(20, -20);
         }
 
-        private void Update()
-        {
-            if (PlayerCoinManager.HostInstance == null) return;
-
-            int currentCoins = PlayerCoinManager.HostInstance.SharedCoins;
-            if (currentCoins != lastDisplayedCoins)
-            {
-                UpdateCoinCount(currentCoins);
-                lastDisplayedCoins = currentCoins;
-            }
-        }
-
+        // This is the only method needed to update the display.
+        // It is called by PlayerCoinManager when it receives an update from the host.
         public void UpdateCoinCount(int newAmount)
         {
             if (coinText != null)
