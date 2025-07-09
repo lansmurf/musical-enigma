@@ -1,3 +1,5 @@
+// ./ShopManager.cs
+
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
@@ -10,7 +12,7 @@ namespace CoinMod
     public class ShopManager : MonoBehaviour
     {
         public static ShopManager Instance { get; private set; }
-        private bool isShopOpen = false;
+        public bool isShopOpen { get; private set; } = false; // Public getter for the patch
         private Campfire activeCampfire;
         private const float MaxInteractionDistance = 10f;
 
@@ -50,33 +52,30 @@ namespace CoinMod
         }
 
         public void OpenShopGUI(Campfire campfire)
-        {
-            if (isShopOpen) return;
-            
-            if (shopPanel == null)
-            {
-                CreateShopUI();
-            }
+{
+    if (isShopOpen) return;
+    
+    if (shopPanel == null)
+    {
+        CreateShopUI();
+    }
+    
+    activeCampfire = campfire;
+    isShopOpen = true; // Our patch will now see this is true
+    shopPanel.SetActive(true);
+    
+    if (!hasInitializedItems) InitializeItemList();
+    PopulateShop();
+}
 
-            activeCampfire = campfire;
-            isShopOpen = true;
-            shopPanel.SetActive(true);
-            
-            if (!hasInitializedItems) InitializeItemList();
-            PopulateShop();
-            
-            SetCursorState(true);
-        }
+public void CloseShopGUI()
+{
+    if (!isShopOpen) return;
 
-        public void CloseShopGUI()
-        {
-            if (!isShopOpen) return;
-            activeCampfire = null;
-            isShopOpen = false;
-            shopPanel.SetActive(false);
-            SetCursorState(false);
-        }
-
+    activeCampfire = null;
+    isShopOpen = false; // Our patch will now see this is false
+    shopPanel.SetActive(false);
+}
         private void PopulateShop()
         {
             foreach (Transform child in contentRect) { Destroy(child.gameObject); }
@@ -131,12 +130,6 @@ namespace CoinMod
             }
             PopulateShop();
         }
-        
-        private static void SetCursorState(bool uiOpen)
-        {
-            Cursor.visible = uiOpen;
-            Cursor.lockState = uiOpen ? CursorLockMode.None : CursorLockMode.Locked;
-        }
 
         private void CreateShopUI()
         {
@@ -154,7 +147,9 @@ namespace CoinMod
             panelImage.color = new Color(0.1f, 0.1f, 0.1f, 0.9f);
             var rt = shopPanel.GetComponent<RectTransform>();
             rt.anchorMin = new Vector2(0.5f, 0.5f); rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.pivot = new Vector2(0.5f, 0.5f); rt.sizeDelta = new Vector2(500, 650);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            // --- UI SIZE FIX: Increased the size of the shop panel as requested ---
+            rt.sizeDelta = new Vector2(600, 750);
 
             var titleGo = new GameObject("Title");
             titleGo.transform.SetParent(shopPanel.transform, false);
@@ -200,8 +195,10 @@ namespace CoinMod
 
             var vlg = contentGo.AddComponent<VerticalLayoutGroup>();
             vlg.padding = new RectOffset(10, 10, 10, 10); vlg.spacing = 5;
-            vlg.childControlHeight = true; vlg.childControlWidth = true;
-            vlg.childForceExpandHeight = false; vlg.childForceExpandWidth = true;
+            vlg.childControlHeight = false; // Correct layout setting
+            vlg.childControlWidth = true;
+            vlg.childForceExpandHeight = false;
+            vlg.childForceExpandWidth = true;
 
             var csf = contentGo.AddComponent<ContentSizeFitter>();
             csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
